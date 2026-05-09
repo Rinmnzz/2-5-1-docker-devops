@@ -1,73 +1,55 @@
 name: CI/CD Tienda Perritos - Frontend
 
-
-
 on:
-
- push:
-
-  branches:
-
-   - main
-
-
+  push:
+    branches: [ "main" ]
+    paths:
+      - "frontend/**"
 
 jobs:
+  build-push-deploy-frontend:
+    runs-on: ubuntu-latest
 
- build:
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v3
 
-  runs-on: ubuntu-latest
+    - name: Configurar credenciales AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: us-east-1 
 
+    - name: Login en Amazon ECR (runner)
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
 
+    - name: Build imagen Frontend y push a ECR
+      env:
+        # Usamos la salida del paso anterior para obtener el registro (ej: 123456.dkr.ecr...)
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        # El nombre del repositorio guardado en tus secretos
+        ECR_REPOSITORY: ${{ secrets.ECR_REPO_URL_FRONTEND }}
+        IMAGE_TAG: latest
+      run: |
+        cd frontend
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-  steps:
-
-   - name: Checkout
-
-    uses: actions/checkout@v4
-
-
-
-   - name: Configure AWS Credentials
-
-    uses: aws-actions/configure-aws-credentials@v4
-
-    with:
-
-     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-
-     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-     aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-
-     aws-region: us-east-1
-
-
-
-   - name: Login Amazon ECR
-
-    uses: aws-actions/amazon-ecr-login@v2
-
-
-
-   - name: Build Docker Image
-
-    run: |
-
-     docker build -t frontend ./frontend
-
-
-
-   - name: Tag Docker Image
-
-    run: |
-
-     docker tag frontend:latest 536342473074.dkr.ecr.us-east-1.amazonaws.com/frontend:latest
-
-
-
-   - name: Push Docker Image
-
-    run: |
-
-     docker push 536342473074.dkr.ecr.us-east-1.amazonaws.com/frontend:latest
+    - name: Desplegar Frontend vía SSM
+      run: |
+        aws ssm send-command \
+          --instance-ids ${{ secrets.EC2_FRONTEND_INSTANCE_ID }} \
+          --document-name "AWS-RunShellScript" \
+          --comment "Actualizar tienda-frontend desde ECR" \
+          --parameters '{"commands":[
+            "set -e",
+            "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
+            "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_FRONTEND }}:latest",
+            "docker stop tienda-frontend || true",
+            "docker rm tienda-frontend || true",
+            "docker run -d --name tienda-frontend -p 80:80 ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_FRONTEND }}:latest"
+          ]}' \
+          --output text
