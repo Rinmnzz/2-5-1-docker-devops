@@ -18,7 +18,7 @@ const btnGuardar = document.getElementById("btnGuardar");
 const btnCancelar = document.getElementById("btnCancelar");
 const formTitle = document.getElementById("formTitle");
 const statusDiv = document.getElementById("status");
-
+ 
 const inputNombre = document.getElementById("nombre");
 const inputDescripcion = document.getElementById("descripcion");
 const inputPrecio = document.getElementById("precio");

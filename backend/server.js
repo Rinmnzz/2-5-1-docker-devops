@@ -52,7 +52,7 @@ app.get("/api/productos", async (req, res) => {
     handleError(res, err, "No se pudieron obtener los productos.");
   }
 });
-
+ 
 // Obtener un producto por ID
 app.get("/api/productos/:id", async (req, res) => {
   const { id } = req.params;
