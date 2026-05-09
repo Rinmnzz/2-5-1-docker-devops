@@ -24,6 +24,7 @@ const inputDescripcion = document.getElementById("descripcion");
 const inputPrecio = document.getElementById("precio");
 const inputStock = document.getElementById("stock");
 
+
 function setStatus(mensaje, tipo = "ok") {
   statusDiv.textContent = mensaje;
   statusDiv.className = "status " + tipo;
