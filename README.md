@@ -14,18 +14,3 @@ docker-compose up -d
 
 
 
-### 3. El "Trigger" de la rama `deploy` (20%)
-Recuerda lo que decía el PDF: el pipeline debe activarse al hacer push en la rama **`deploy`**.
-* **Si ya lo hiciste en `main`**: No te preocupes tanto, pero si puedes, crea la rama `deploy` (`git checkout -b deploy`), cambia en tu archivo `.yml` la parte de `branches: [ "main" ]` por `branches: [ "deploy" ]` y haz el push. Así cumples el requisito al pie de la letra.
-
----
-
-### ¿Cómo saber si ya terminaste? (Checklist Final)
-Si puedes decir "SÍ" a todo esto, estás listo para el 7.0:
-1. [ ] ¿Los 3 contenedores aparecen en `docker ps` en la EC2?
-2. [ ] ¿El archivo `docker-compose.yml` tiene la sección `volumes:` al final?
-3. [ ] ¿Tu Dockerfile del Backend tiene la línea `USER node`?
-4. [ ] ¿Escribiste el `README.md`?
-5. [ ] ¿Puedes entrar a la web desde tu navegador y ver que funciona?
-
-**¿Hay algo de este checklist que todavía te genere dudas?** Si no, ¡ya estás listo para triunfar en la entrega!
