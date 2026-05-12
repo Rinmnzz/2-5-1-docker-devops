@@ -2,8 +2,7 @@ name: CI/CD Tienda Perritos - Frontend
 
 on:
   push:
-    branches: [ "main" ]
-    version: "3.9"
+    branches: [ "main" ] # O cambia a "deploy" si vas a seguir la pauta estrictamente
     paths:
       - "frontend/**"
 
@@ -22,34 +21,38 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: us-east-1 
 
-    - name: Login en Amazon ECR (runner)
+    - name: Login en Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
     - name: Build imagen Frontend y push a ECR
       env:
-        # Usamos la salida del paso anterior para obtener el registro (ej: 123456.dkr.ecr...)
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        # El nombre del repositorio guardado en tus secretos
         ECR_REPOSITORY: ${{ secrets.ECR_REPO_URL_FRONTEND }}
-        IMAGE_TAG: latest
+        # Cambiamos la versión fija por el ID del commit (SHA)
+        IMAGE_TAG: ${{ github.sha }} 
       run: |
         cd frontend
+        # Construimos con el ID único del commit
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        # También le ponemos 'latest' para tener siempre una referencia fácil
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        # Subimos ambas etiquetas a ECR
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
     - name: Desplegar Frontend vía SSM
       run: |
         aws ssm send-command \
           --instance-ids ${{ secrets.EC2_FRONTEND_INSTANCE_ID }} \
           --document-name "AWS-RunShellScript" \
-          --comment "Actualizar tienda-frontend desde ECR" \
+          --comment "Actualizar tienda-frontend con version SHA" \
           --parameters '{"commands":[
             "set -e",
             "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-            "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_FRONTEND }}:latest",
+            "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_FRONTEND }}:${{ github.sha }}",
             "docker stop tienda-frontend || true",
             "docker rm tienda-frontend || true",
-            "docker run -d --name tienda-frontend -p 80:80 ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_FRONTEND }}:latest"
+            "docker run -d --name tienda-frontend -p 80:80 ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_FRONTEND }}:${{ github.sha }}"
           ]}' \
           --output text
