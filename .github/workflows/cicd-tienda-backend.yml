@@ -9,7 +9,6 @@ on:
 jobs:
   build-push-deploy-backend:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout código
       uses: actions/checkout@v3
@@ -28,31 +27,32 @@ jobs:
 
     - name: Build imagen Backend y push a ECR
       env:
-        # Usamos el SHA del commit para la versión única
+        # Usamos el registro que sale del paso anterior + el nombre del repo
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        # Asegúrate de que este secreto sea solo el NOMBRE del repo (ej: tienda-backend)
+        ECR_REPOSITORY: ${{ secrets.ECR_REPO_NAME_BACKEND }} 
         IMAGE_TAG: ${{ github.sha }}
-        ECR_REPO: ${{ secrets.ECR_REPO_URL_BACKEND }}
       run: |
         cd backend
-        # Construir con tag único
-        docker build -t $ECR_REPO:$IMAGE_TAG .
-        # Etiquetar también como latest
-        docker tag $ECR_REPO:$IMAGE_TAG $ECR_REPO:latest
-        # Subir ambas versiones
-        docker push $ECR_REPO:$IMAGE_TAG
-        docker push $ECR_REPO:latest
+        # Si el secreto ECR_REPO_URL_BACKEND ya tiene la URL completa, úsalo así:
+        # Pero para evitar errores, lo construiremos de forma más segura:
+        docker build -t $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:latest
+        
+        docker push $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG
+        docker push $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:latest
 
     - name: Desplegar Backend vía SSM
       run: |
         aws ssm send-command \
           --instance-ids ${{ secrets.EC2_BACKEND_INSTANCE_ID }} \
           --document-name "AWS-RunShellScript" \
-          --comment "Actualizar tienda-backend con version SHA" \
           --parameters '{"commands":[
             "set -e",
             "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-            "docker pull ${{ secrets.ECR_REPO_URL_BACKEND }}:${{ github.sha }}",
+            "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_BACKEND }}:${{ github.sha }}",
             "docker stop tienda-backend || true",
             "docker rm tienda-backend || true",
-            "docker run -d --name tienda-backend -p 3001:3001 ${{ secrets.ECR_REPO_URL_BACKEND }}:${{ github.sha }}"
+            "docker run -d --name tienda-backend -p 3001:3001 ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO_URL_BACKEND }}:${{ github.sha }}"
           ]}' \
           --output text
