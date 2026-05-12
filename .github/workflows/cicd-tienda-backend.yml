@@ -33,9 +33,7 @@ jobs:
         ECR_REPOSITORY: ${{ secrets.ECR_REPO_NAME_BACKEND }} 
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        cd backend
-        # Si el secreto ECR_REPO_URL_BACKEND ya tiene la URL completa, úsalo así:
-        # Pero para evitar errores, lo construiremos de forma más segura:
+        
         docker build -t $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG .
         docker tag $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:latest
         
