@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+ 
+  db:
+    build: ./db
+    container_name: db_tienda_perritos
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin123
+      - MYSQL_DATABASE=tienda_perritos
+      - MYSQL_USER=alumno
+      - MYSQL_PASSWORD=alumno123
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - backend-net
+
+  
+  backend:
+    build: ./backend  
+    container_name: backend_app
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_USER=alumno
+      - DB_PASS=alumno123
+      - DB_NAME=tienda_perritos
+      - PORT=3001
+    networks:
+      - backend-net
+      - frontend-net
+  frontend:
+    build: ./frontend
+    container_name: frontend_app
+    restart: always
+    ports:
+      - "80:80" 
+    depends_on:
+      - backend
+    networks:
+      - frontend-net
+volumes:
+  db_data:
+networks:
+  frontend-net: 
+  backend-net: 
+  
+  
