@@ -27,24 +27,33 @@ jobs:
 
     - name: Build imagen Backend y push a ECR
       env:
-        # Usamos el registro que sale del paso anterior + el nombre del repo
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        # Asegúrate de que este secreto sea solo el NOMBRE del repo (ej: tienda-backend)
-        ECR_REPOSITORY: ${{ secrets.ECR_REPO_NAME_BACKEND }} 
+        # USAREMOS ESTE SECRETO: Asegúrate de que en GitHub se llame ECR_REPO_URL_BACKEND y su valor sea 'backend'
+        ECR_REPOSITORY: ${{ secrets.ECR_REPO_URL_BACKEND }} 
         IMAGE_TAG: ${{ github.sha }}
       run: |
+        # Entramos a la carpeta para que Docker encuentre el package.json y el código
+        cd backend
         
-        docker build -t $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG .
-        docker tag $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:latest
+        # Validamos que el nombre del repo no esté vacío
+        if [ -z "$ECR_REPOSITORY" ]; then echo "Error: ECR_REPO_URL_BACKEND está vacío"; exit 1; fi
+
+        # Construimos la imagen (el punto final es el contexto dentro de /backend)
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         
-        docker push $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:$IMAGE_TAG
-        docker push $ECR_REGISTRY/${{ secrets.ECR_REPO_URL_BACKEND }}:latest
+        # Tagueamos como latest
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        # Push de ambas etiquetas
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
     - name: Desplegar Backend vía SSM
       run: |
         aws ssm send-command \
           --instance-ids ${{ secrets.EC2_BACKEND_INSTANCE_ID }} \
           --document-name "AWS-RunShellScript" \
+          --comment "Desplegando Backend version ${{ github.sha }}" \
           --parameters '{"commands":[
             "set -e",
             "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
